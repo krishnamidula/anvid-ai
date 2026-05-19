@@ -6,7 +6,7 @@ import Hero from './components/Hero'
 import InputForm from './components/InputForm'
 import ResultsDashboard from './components/ResultsDashboard'
 
-const API_URL = 'http://localhost:8000/api/analyse'
+const API_URL = import.meta.env.VITE_API_URL;
 
 export default function App() {
   const [state, setState] = useState('input')
