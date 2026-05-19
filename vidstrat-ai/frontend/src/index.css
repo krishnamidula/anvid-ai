@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #0F1117;
+  color: #ffffff;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.hero-gradient {
+  background:
+    radial-gradient(circle at 78% 18%, rgba(108, 99, 255, 0.18), transparent 28%),
+    radial-gradient(circle at 18% 82%, rgba(67, 184, 156, 0.12), transparent 24%),
+    linear-gradient(135deg, #0F1117 0%, #1a1040 50%, #0F1117 100%);
+  background-size: 180% 180%;
+  animation: gradientShift 8s ease infinite;
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.text-shimmer {
+  background: linear-gradient(90deg, #fff 0%, #6C63FF 50%, #43B89C 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 4s linear infinite;
+}
+
+@keyframes shimmer {
+  to { background-position: 200% center; }
+}
+
+.ambient-field {
+  position: absolute;
+  inset: -20%;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(circle at 50% 40%, black, transparent 72%);
+  animation: fieldDrift 16s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes fieldDrift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(44px, 44px, 0); }
+}
+
+.pulse-dot {
+  animation: pulseDot 1.2s ease-in-out infinite;
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.6); }
+}
+
+.scan-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #6C63FF, transparent);
+  animation: scan 2s linear infinite;
+}
+
+@keyframes scan {
+  0% { top: 0%; }
+  100% { top: 100%; }
+}
+
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 40px rgba(108, 99, 255, 0.2);
+  border-color: rgba(108, 99, 255, 0.5);
+}
+
+.progress-fill {
+  background: linear-gradient(90deg, #6C63FF, #43B89C);
+  border-radius: 999px;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.score-high { color: #43B89C; }
+.score-medium { color: #FFB347; }
+.score-low { color: #FF6584; }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #1E2130; }
+::-webkit-scrollbar-thumb { background: #2D3250; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #6C63FF; }

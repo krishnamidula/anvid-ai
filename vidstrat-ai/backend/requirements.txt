@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+google-api-python-client
+anthropic
+python-pptx
+matplotlib
+seaborn
+pandas
+numpy
+python-dotenv
+Pillow
+requests
+isodate
+python-multipart
