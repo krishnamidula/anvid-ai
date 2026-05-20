@@ -52,8 +52,8 @@ export default function App() {
   }, [state, request])
 
   function submit(payload) {
-    if (!payload.primary_company?.trim() || payload.competitors.length < 1) {
-      setError('Enter a primary company and at least one competitor.')
+    if (!payload.primary_company?.trim()) {
+      setError('Enter at least one YouTube channel or company name.')
       setState('error')
       return
     }

@@ -23,6 +23,9 @@ const tabs = [
 export default function ResultsDashboard({ data, onNew }) {
   const wrapperRef = useRef(null)
   const contentRef = useRef(null)
+  const title = data.companies?.length > 1
+    ? `${data.winner} leads this comparison`
+    : `${data.winner} report is ready`
 
   function downloadPpt() {
     const binary = atob(data.pptx_base64)
@@ -42,17 +45,25 @@ export default function ResultsDashboard({ data, onNew }) {
   useEffect(() => {
     const target = contentRef.current || wrapperRef.current
     window.requestAnimationFrame(() => {
-      setTimeout(() => target?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
+      setTimeout(() => {
+        if (!target) return
+        const top = target.getBoundingClientRect().top + window.scrollY - 12
+        window.scrollTo({ top: Math.max(0, top), behavior: 'auto' })
+      }, 80)
     })
-  }, [active])
+  }, [active, data])
 
   return (
     <motion.div ref={wrapperRef} initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} className="mx-auto max-w-7xl px-6 py-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="text-xs font-bold uppercase tracking-widest text-primary">anvidAI Report</div>
-          <h1 className="mt-2 text-3xl font-black text-white">{data.winner} leads this comparison</h1>
-          {data.excluded_companies?.length > 0 && <p className="mt-2 text-sm text-warm">{data.excluded_companies.map((item) => item.error).join(' ')}</p>}
+          <h1 className="mt-2 text-3xl font-black text-white">{title}</h1>
+          {data.excluded_companies?.length > 0 && (
+            <p className="mt-2 text-sm text-warm">
+              Some channels were skipped because YouTube did not return live data for them.
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap gap-3">
           <button onClick={downloadPpt} className="rounded-xl bg-gradient-to-r from-primary to-secondary px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/30 transition-all hover:scale-105 hover:shadow-xl">

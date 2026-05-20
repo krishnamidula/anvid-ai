@@ -27,7 +27,7 @@ export default function InputForm({ onSubmit }) {
   return (
     <motion.form initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} onSubmit={submit} className="rounded-2xl border border-border bg-card p-8">
       <div className="mb-2 text-xs font-bold uppercase tracking-widest text-primary">Define Your Competitive Landscape</div>
-      <h2 className="mb-8 text-2xl font-bold text-white">Who are you up against?</h2>
+      <h2 className="mb-8 text-2xl font-bold text-white">Add one channel, or compare up to five.</h2>
       <div className="grid gap-4">
         <motion.input initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} value={primary} onChange={(event) => setPrimary(event.target.value)} placeholder="Primary company" className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-white transition-all placeholder:text-faint focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" />
         <div className="grid gap-4 md:grid-cols-2">
@@ -39,7 +39,7 @@ export default function InputForm({ onSubmit }) {
               transition={{ delay: 0.05 * index }}
               value={value}
               onChange={(event) => updateCompetitor(index, event.target.value)}
-              placeholder={`Competitor ${index + 1}`}
+              placeholder={`Optional competitor ${index + 1}`}
               className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-white transition-all placeholder:text-faint focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           ))}

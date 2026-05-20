@@ -38,7 +38,7 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 class AnalyseRequest(BaseModel):
     primary_company: str = Field(..., min_length=1)
-    competitors: List[str] = Field(..., min_length=1, max_length=4)
+    competitors: List[str] = Field(default_factory=list, max_length=4)
 
 
 @app.get("/api/health")
@@ -49,8 +49,8 @@ def health():
 @app.post("/api/analyse")
 def analyse(request: AnalyseRequest):
     names = [request.primary_company.strip()] + [name.strip() for name in request.competitors if name.strip()]
-    if len(names) < 2:
-        raise HTTPException(status_code=400, detail="Enter a primary company and at least one competitor.")
+    if not request.primary_company.strip():
+        raise HTTPException(status_code=400, detail="Enter at least one YouTube channel or company name.")
 
     try:
         fetcher = YouTubeFetcher()
@@ -60,7 +60,7 @@ def analyse(request: AnalyseRequest):
     raw_channels = [fetcher.get_full_channel_data(name) for name in names]
     valid_channels = [channel for channel in raw_channels if not channel.get("error")]
     live_errors = [{"name": channel.get("name"), "error": channel.get("error")} for channel in raw_channels if channel.get("error")]
-    if len(valid_channels) < 2:
+    if len(valid_channels) < 1:
         unique_errors = list(dict.fromkeys(error["error"] for error in live_errors if error.get("error")))
         details = " ".join(unique_errors) or "Could not fetch enough valid YouTube channels."
         raise HTTPException(status_code=503, detail=f"Live YouTube data is unavailable: {details}")
