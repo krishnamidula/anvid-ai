@@ -42,21 +42,30 @@ class YouTubeFetcher:
 
     def search_channel(self, company_name: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         try:
-            candidates = []
+            candidates = {}
             for query in self._channel_queries(company_name):
                 response = self.youtube.search().list(
                     part="snippet",
                     q=query,
                     type="channel",
                     order="relevance",
-                    maxResults=5,
+                    maxResults=10,
                 ).execute()
-                candidates.extend(response.get("items", []))
-                if candidates:
-                    break
+                for item in response.get("items", []):
+                    channel_id = item.get("snippet", {}).get("channelId")
+                    if channel_id:
+                        candidates[channel_id] = item
             if not candidates:
                 return None, None, f"Could not locate an official YouTube channel for {company_name}. This company will be excluded from the analysis."
-            item = max(candidates, key=lambda candidate: self._channel_match_score(company_name, candidate))
+            stats_by_id = self.get_channel_stats_batch(list(candidates.keys()))
+            item = max(
+                candidates.values(),
+                key=lambda candidate: self._channel_match_score(
+                    company_name,
+                    candidate,
+                    stats_by_id.get(candidate.get("snippet", {}).get("channelId"), {}),
+                ),
+            )
             return item["snippet"]["channelId"], item["snippet"]["title"], None
         except Exception as error:
             return None, None, self.friendly_error(error, company_name)
@@ -65,26 +74,60 @@ class YouTubeFetcher:
     def _channel_queries(company_name: str) -> List[str]:
         cleaned = " ".join(company_name.split())
         return [
+            f"{cleaned} official YouTube channel",
             f"{cleaned} official",
-            f"{cleaned} India",
-            f"{cleaned} YouTube",
+            f"{cleaned} brand",
             cleaned,
+            f"{cleaned} India",
         ]
 
     @staticmethod
-    def _channel_match_score(company_name: str, candidate: Dict) -> int:
+    def _channel_match_score(company_name: str, candidate: Dict, stats: Optional[Dict] = None) -> float:
+        stats = stats or {}
         title = candidate.get("snippet", {}).get("title", "")
+        description = candidate.get("snippet", {}).get("description", "")
         title_tokens = set(re.findall(r"[a-z0-9]+", title.lower()))
         company_tokens = set(re.findall(r"[a-z0-9]+", company_name.lower()))
-        score = len(title_tokens & company_tokens) * 10
+        normalized_title = re.sub(r"[^a-z0-9]+", "", title.lower())
+        normalized_company = re.sub(r"[^a-z0-9]+", "", company_name.lower())
+        score = len(title_tokens & company_tokens) * 20
         lower_title = title.lower()
+        lower_description = description.lower()
+        if normalized_company and normalized_title == normalized_company:
+            score += 120
+        elif normalized_company and normalized_company in normalized_title:
+            score += 55
+        if company_name.lower() in lower_description:
+            score += 15
         if "official" in lower_title:
-            score += 4
+            score += 20
         if "india" in lower_title:
-            score += 3
+            score += 8
         if "tv" in lower_title:
-            score += 2
+            score += 6
+        subscribers = YouTubeFetcher._safe_int(stats.get("subscriberCount"))
+        views = YouTubeFetcher._safe_int(stats.get("viewCount"))
+        videos = YouTubeFetcher._safe_int(stats.get("videoCount"))
+        score += min(80, subscribers / 25_000)
+        score += min(35, views / 5_000_000)
+        if subscribers < 1_000:
+            score -= 80
+        if videos < 3:
+            score -= 20
         return score
+
+    def get_channel_stats_batch(self, channel_ids: List[str]) -> Dict[str, Dict]:
+        results: Dict[str, Dict] = {}
+        for index in range(0, len(channel_ids), 50):
+            batch = channel_ids[index:index + 50]
+            response = self.youtube.channels().list(
+                part="statistics",
+                id=",".join(batch),
+                maxResults=50,
+            ).execute()
+            for item in response.get("items", []):
+                results[item["id"]] = item.get("statistics", {})
+        return results
 
     def get_channel_stats(self, channel_id: str) -> Dict:
         response = self.youtube.channels().list(
