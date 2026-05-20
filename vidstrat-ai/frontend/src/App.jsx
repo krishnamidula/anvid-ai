@@ -62,13 +62,12 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (state === 'input') {
-      const scrollTop = () => {
-        window.scrollTo({ top: 0, left: 0, behavior: 'smooth' })
+    if (state === 'input' || state === 'analysing' || state === 'error') {
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
         if (document.scrollingElement) document.scrollingElement.scrollTop = 0
         if (document.body) document.body.scrollTop = 0
-      }
-      window.requestAnimationFrame(() => setTimeout(scrollTop, 50))
+      })
     }
   }, [state])
 

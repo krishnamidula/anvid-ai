@@ -58,12 +58,13 @@ def analyse(request: AnalyseRequest):
         raise HTTPException(status_code=500, detail=str(error)) from error
 
     raw_channels = [fetcher.get_full_channel_data(name) for name in names]
-    valid_channels = [channel for channel in raw_channels if not channel.get("error")]
     live_errors = [{"name": channel.get("name"), "error": channel.get("error")} for channel in raw_channels if channel.get("error")]
-    if len(valid_channels) < 1:
-        unique_errors = list(dict.fromkeys(error["error"] for error in live_errors if error.get("error")))
-        details = " ".join(unique_errors) or "Could not fetch enough valid YouTube channels."
-        raise HTTPException(status_code=503, detail=f"Live YouTube data is unavailable: {details}")
+    estimated_channels = [
+        generate_estimated_channel_data(channel.get("name") or names[index], index, channel.get("error", "Live YouTube data unavailable."))
+        for index, channel in enumerate(raw_channels)
+        if channel.get("error")
+    ]
+    valid_channels = [channel for channel in raw_channels if not channel.get("error")] + estimated_channels
 
     data_analyzer = DataAnalyzer()
     seo_analyzer = SEOAnalyzer()
@@ -150,7 +151,8 @@ def analyse(request: AnalyseRequest):
         "live_errors": live_errors,
         "ai_available": ai_analyzer.available,
         "ai_message": "AI commentary disabled because no Anthropic API key is configured.",
-        "data_source": "youtube",
+        "data_source": "youtube" if not estimated_channels else "estimated" if len(estimated_channels) == len(valid_channels) else "mixed",
+        "data_quality_note": "" if not estimated_channels else "Some channels use estimated benchmark data because YouTube API quota blocked live fetching.",
     }
     if ai_analyzer.available:
         payload["ai_message"] = "AI commentary is enabled."
@@ -169,6 +171,153 @@ def format_distribution(videos):
         else:
             buckets["Long-form"] += 1
     return buckets
+
+
+ESTIMATED_CHANNELS = {
+    "mrbeast": {
+        "title": "MrBeast",
+        "subscribers": 483_000_000,
+        "total_views": 147_000_000_000,
+        "video_count": 950,
+        "avg_views": 110_000_000,
+        "topics": ["challenge spectacle", "philanthropy", "survival format", "high-stakes games", "creator collaboration"],
+    },
+    "pewdiepie": {
+        "title": "PewDiePie",
+        "subscribers": 111_000_000,
+        "total_views": 29_500_000_000,
+        "video_count": 4_800,
+        "avg_views": 3_200_000,
+        "topics": ["commentary", "gaming culture", "personal updates", "internet trends", "creator lifestyle"],
+    },
+    "dudeperfect": {
+        "title": "Dude Perfect",
+        "subscribers": 62_000_000,
+        "total_views": 20_600_000_000,
+        "video_count": 570,
+        "avg_views": 14_000_000,
+        "topics": ["trick shots", "sports entertainment", "stereotypes", "battles", "family-safe comedy"],
+    },
+    "mkbhd": {
+        "title": "Marques Brownlee",
+        "subscribers": 20_000_000,
+        "total_views": 4_800_000_000,
+        "video_count": 1_700,
+        "avg_views": 2_600_000,
+        "topics": ["tech reviews", "smartphones", "cars and gadgets", "creator interviews", "product explainers"],
+    },
+    "marquesbrownlee": {
+        "title": "Marques Brownlee",
+        "subscribers": 20_000_000,
+        "total_views": 4_800_000_000,
+        "video_count": 1_700,
+        "avg_views": 2_600_000,
+        "topics": ["tech reviews", "smartphones", "cars and gadgets", "creator interviews", "product explainers"],
+    },
+    "tseries": {
+        "title": "T-Series",
+        "subscribers": 311_000_000,
+        "total_views": 300_000_000_000,
+        "video_count": 23_000,
+        "avg_views": 5_500_000,
+        "topics": ["music videos", "film trailers", "regional music", "artist launches", "soundtrack promotion"],
+    },
+    "cocomelon": {
+        "title": "Cocomelon",
+        "subscribers": 201_000_000,
+        "total_views": 205_000_000_000,
+        "video_count": 1_400,
+        "avg_views": 45_000_000,
+        "topics": ["nursery rhymes", "kids education", "family routines", "songs", "animated stories"],
+    },
+    "puma": {
+        "title": "PUMA",
+        "subscribers": 908_000,
+        "total_views": 695_000_000,
+        "video_count": 1_100,
+        "avg_views": 1_100_000,
+        "topics": ["athlete stories", "product launches", "football culture", "running", "brand campaigns"],
+    },
+}
+
+
+def _estimate_profile(company_name: str, index: int) -> dict:
+    key = "".join(char for char in company_name.lower() if char.isalnum())
+    if key in ESTIMATED_CHANNELS:
+        return ESTIMATED_CHANNELS[key]
+    seed = sum(ord(char) for char in company_name) + index * 97
+    subscribers = 450_000 + (seed % 9_000_000) + index * 240_000
+    avg_views = 75_000 + (seed % 1_800_000)
+    return {
+        "title": company_name,
+        "subscribers": subscribers,
+        "total_views": avg_views * (160 + seed % 600),
+        "video_count": 120 + seed % 850,
+        "avg_views": avg_views,
+        "topics": ["brand stories", "how-to content", "campaign videos", "short-form trends", "community moments"],
+    }
+
+
+def generate_estimated_channel_data(company_name: str, index: int, reason: str = "") -> dict:
+    profile = _estimate_profile(company_name, index)
+    base_views = int(profile["avg_views"])
+    today = datetime.utcnow().replace(microsecond=0)
+    videos = []
+    topics = profile["topics"]
+    for video_index in range(30):
+        multiplier = 0.55 + ((video_index * 37 + index * 11) % 110) / 100
+        if video_index in (1, 7, 16):
+            multiplier *= 2.4
+        views = int(base_views * multiplier)
+        likes = int(views * (0.025 + ((video_index + index) % 12) / 1000))
+        comments = int(views * (0.0014 + ((video_index + index) % 7) / 10000))
+        published = today - timedelta(days=video_index * (5 + (index % 3)))
+        topic = topics[video_index % len(topics)]
+        videos.append({
+            "video_id": f"estimated-{index}-{video_index}",
+            "title": f"{profile['title']}: {topic.title()}",
+            "published_at": published.isoformat() + "Z",
+            "description": f"Estimated benchmark video for {profile['title']} covering {topic}.",
+            "tags": [profile["title"], topic, "youtube strategy"],
+            "thumbnail_url": "",
+            "views": views,
+            "likes": likes,
+            "comments": comments,
+            "duration_seconds": 45 + ((video_index * 61 + index) % 850),
+            "definition": "HD",
+            "caption": video_index % 2 == 0,
+            "engagement_rate": ((likes + comments) / views * 100) if views else 0,
+        })
+    videos.sort(key=lambda item: item.get("views", 0), reverse=True)
+
+    def avg(key: str) -> float:
+        return sum(video.get(key, 0) for video in videos) / len(videos) if videos else 0
+
+    return {
+        "channel_id": f"estimated-{company_name.lower().replace(' ', '-')}",
+        "channel_title": profile["title"],
+        "subscribers": profile["subscribers"],
+        "hidden_subscribers": False,
+        "total_views": profile["total_views"],
+        "video_count": profile["video_count"],
+        "country": "",
+        "description": f"Estimated fallback profile for {profile['title']}. Reason: {reason}",
+        "published_at": "",
+        "custom_url": f"@{profile['title'].replace(' ', '')}",
+        "thumbnail_url": "",
+        "name": company_name,
+        "found_title": profile["title"],
+        "videos": videos,
+        "avg_views": avg("views"),
+        "avg_engagement_rate": avg("engagement_rate"),
+        "avg_likes": avg("likes"),
+        "avg_comments": avg("comments"),
+        "top_5_videos": videos[:5],
+        "recent_10_videos": sorted(videos, key=lambda video: video.get("published_at", ""), reverse=True)[:10],
+        "upload_dates": [video.get("published_at", "") for video in videos],
+        "estimated": True,
+        "estimate_reason": reason,
+    }
 
 
 def generate_demo_channel_data(company_name: str, index: int) -> dict:

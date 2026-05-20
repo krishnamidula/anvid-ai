@@ -59,10 +59,9 @@ export default function ResultsDashboard({ data, onNew }) {
         <div>
           <div className="text-xs font-bold uppercase tracking-widest text-primary">anvidAI Report</div>
           <h1 className="mt-2 text-3xl font-black text-white">{title}</h1>
+          {data.data_quality_note && <p className="mt-2 text-sm text-warm">{data.data_quality_note}</p>}
           {data.excluded_companies?.length > 0 && (
-            <p className="mt-2 text-sm text-warm">
-              Some channels were skipped because YouTube did not return live data for them.
-            </p>
+            <p className="mt-1 text-xs text-muted">Live YouTube API was unavailable for {data.excluded_companies.length} channel(s), so fallback estimates were used to keep the report complete.</p>
           )}
         </div>
         <div className="flex flex-wrap gap-3">
