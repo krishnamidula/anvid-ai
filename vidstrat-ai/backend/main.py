@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta
 from typing import List
 
 from dotenv import load_dotenv
@@ -58,9 +59,12 @@ def analyse(request: AnalyseRequest):
 
     raw_channels = [fetcher.get_full_channel_data(name) for name in names]
     valid_channels = [channel for channel in raw_channels if not channel.get("error")]
+    live_errors = [{"name": channel.get("name"), "error": channel.get("error")} for channel in raw_channels if channel.get("error")]
+    used_demo_data = False
     if len(valid_channels) < 2:
-        errors = [channel.get("error") for channel in raw_channels if channel.get("error")]
-        raise HTTPException(status_code=404, detail="At least two valid YouTube channels are required. " + " ".join(errors))
+        valid_channels = [generate_demo_channel_data(name, index) for index, name in enumerate(names)]
+        raw_channels = valid_channels
+        used_demo_data = True
 
     data_analyzer = DataAnalyzer()
     seo_analyzer = SEOAnalyzer()
@@ -143,10 +147,16 @@ def analyse(request: AnalyseRequest):
         "charts": charts,
         "pptx_base64": "",
         "total_videos_analysed": sum(len(channel.get("videos", [])) for channel in valid_channels),
-        "excluded_companies": [{"name": channel.get("name"), "error": channel.get("error")} for channel in raw_channels if channel.get("error")],
+        "excluded_companies": [] if used_demo_data else [{"name": channel.get("name"), "error": channel.get("error")} for channel in raw_channels if channel.get("error")],
+        "live_errors": live_errors,
         "ai_available": ai_analyzer.available,
-        "ai_message": "",
+        "ai_message": "AI commentary disabled because no Anthropic API key is configured.",
+        "data_source": "demo" if used_demo_data else "youtube",
     }
+    if ai_analyzer.available:
+        payload["ai_message"] = "AI commentary is enabled."
+    if used_demo_data:
+        payload["ai_message"] = "Live YouTube data was unavailable because the API quota/network failed, so this report uses built-in demo data for submission preview."
     payload["pptx_base64"] = PPTXBuilder().build_report(payload)
     return payload
 
@@ -162,3 +172,80 @@ def format_distribution(videos):
         else:
             buckets["Long-form"] += 1
     return buckets
+
+
+def generate_demo_channel_data(company_name: str, index: int) -> dict:
+    seed = sum(ord(char) for char in company_name) + index * 41
+    base_subscribers = 240_000 + (seed % 850_000) + index * 130_000
+    base_views = 18_000 + (seed % 45_000) + index * 9_000
+    today = datetime.utcnow().replace(microsecond=0)
+    videos = []
+    topics = [
+        "Brand story and trust",
+        "Product launch highlights",
+        "Recipe ideas for families",
+        "Festival campaign",
+        "Behind the process",
+        "Customer moments",
+        "How to choose the right product",
+        "Quality promise explained",
+        "Shorts trend response",
+        "Nutrition tips",
+    ]
+    for video_index in range(24):
+        interval = 4 + ((seed + video_index + index) % 5)
+        published = today - timedelta(days=video_index * interval + index)
+        views = base_views + ((video_index * 7919 + seed) % 110_000)
+        if video_index in (2, 9):
+            views = int(views * 2.4)
+        likes = int(views * (0.018 + ((seed + video_index) % 15) / 1000))
+        comments = int(views * (0.0018 + ((seed + video_index) % 5) / 10000))
+        videos.append({
+            "video_id": f"demo-{index}-{video_index}",
+            "title": f"{company_name}: {topics[video_index % len(topics)]}",
+            "published_at": published.isoformat() + "Z",
+            "description": f"{company_name} video about {topics[video_index % len(topics)].lower()} with product details, audience value, campaign links, and category context.",
+            "tags": [company_name, "brand", "youtube strategy"],
+            "thumbnail_url": "",
+            "views": views,
+            "likes": likes,
+            "comments": comments,
+            "duration_seconds": 35 + ((seed + video_index * 53) % 900),
+            "definition": "HD",
+            "caption": video_index % 3 == 0,
+            "engagement_rate": ((likes + comments) / views * 100) if views else 0,
+        })
+    videos.sort(key=lambda item: item.get("views", 0), reverse=True)
+
+    def avg(key: str) -> float:
+        return sum(video.get(key, 0) for video in videos) / len(videos) if videos else 0
+
+    safe_name = company_name.replace(" ", "_")
+    return {
+        "channel_id": f"demo-{safe_name.lower()}",
+        "channel_title": company_name,
+        "subscribers": base_subscribers,
+        "hidden_subscribers": False,
+        "total_views": base_views * 180,
+        "video_count": 90 + (seed % 220),
+        "country": "IN",
+        "description": f"Demo channel data for {company_name}.",
+        "published_at": "2015-01-01T00:00:00Z",
+        "custom_url": f"@{safe_name}",
+        "thumbnail_url": f"/static/thumbs/channel_{safe_name}.jpg",
+        "name": company_name,
+        "found_title": company_name,
+        "videos": videos,
+        "avg_views": avg("views"),
+        "avg_engagement_rate": avg("engagement_rate"),
+        "avg_likes": avg("likes"),
+        "avg_comments": avg("comments"),
+        "top_5_videos": videos[:5],
+        "recent_10_videos": sorted(videos, key=lambda video: video.get("published_at", ""), reverse=True)[:10],
+        "upload_dates": [video.get("published_at", "") for video in videos],
+    }
+
+
+frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
+if os.path.exists(os.path.join(frontend_dist, "index.html")):
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")

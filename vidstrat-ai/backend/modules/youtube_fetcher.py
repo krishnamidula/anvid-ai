@@ -1,4 +1,5 @@
 import os
+import re
 from typing import Dict, List, Optional, Tuple
 
 import isodate
@@ -16,8 +17,14 @@ class YouTubeFetcher:
     @staticmethod
     def friendly_error(error: Exception, company_name: str = "") -> str:
         text = str(error).lower()
-        if isinstance(error, HttpError) and "quota" in text:
-            return "YouTube API quota has been reached. Please try again tomorrow or use a different API key."
+        if isinstance(error, HttpError):
+            if "quota" in text:
+                return "YouTube API quota has been reached. Please try again tomorrow or use a different API key."
+            if any(term in text for term in ["api key not valid", "bad request", "keyinvalid"]):
+                return "The configured YouTube API key is invalid. Add a valid YouTube Data API v3 key to backend/.env and restart the backend."
+            if any(term in text for term in ["access not configured", "has not been used", "disabled", "forbidden", "permission"]):
+                return "The configured API key cannot access YouTube Data API v3. Enable YouTube Data API v3 for that Google Cloud project, check API restrictions, then restart the backend."
+            return f"YouTube API error: {getattr(error, 'reason', None) or str(error)}"
         if "quota" in text:
             return "YouTube API quota has been reached. Please try again tomorrow or use a different API key."
         if any(term in text for term in ["connection", "timeout", "network", "name resolution"]):
@@ -35,20 +42,49 @@ class YouTubeFetcher:
 
     def search_channel(self, company_name: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
         try:
-            response = self.youtube.search().list(
-                part="snippet",
-                q=f"{company_name} official",
-                type="channel",
-                order="relevance",
-                maxResults=1,
-            ).execute()
-            items = response.get("items", [])
-            if not items:
+            candidates = []
+            for query in self._channel_queries(company_name):
+                response = self.youtube.search().list(
+                    part="snippet",
+                    q=query,
+                    type="channel",
+                    order="relevance",
+                    maxResults=5,
+                ).execute()
+                candidates.extend(response.get("items", []))
+                if candidates:
+                    break
+            if not candidates:
                 return None, None, f"Could not locate an official YouTube channel for {company_name}. This company will be excluded from the analysis."
-            item = items[0]
+            item = max(candidates, key=lambda candidate: self._channel_match_score(company_name, candidate))
             return item["snippet"]["channelId"], item["snippet"]["title"], None
         except Exception as error:
             return None, None, self.friendly_error(error, company_name)
+
+    @staticmethod
+    def _channel_queries(company_name: str) -> List[str]:
+        cleaned = " ".join(company_name.split())
+        return [
+            f"{cleaned} official",
+            f"{cleaned} India",
+            f"{cleaned} YouTube",
+            cleaned,
+        ]
+
+    @staticmethod
+    def _channel_match_score(company_name: str, candidate: Dict) -> int:
+        title = candidate.get("snippet", {}).get("title", "")
+        title_tokens = set(re.findall(r"[a-z0-9]+", title.lower()))
+        company_tokens = set(re.findall(r"[a-z0-9]+", company_name.lower()))
+        score = len(title_tokens & company_tokens) * 10
+        lower_title = title.lower()
+        if "official" in lower_title:
+            score += 4
+        if "india" in lower_title:
+            score += 3
+        if "tv" in lower_title:
+            score += 2
+        return score
 
     def get_channel_stats(self, channel_id: str) -> Dict:
         response = self.youtube.channels().list(

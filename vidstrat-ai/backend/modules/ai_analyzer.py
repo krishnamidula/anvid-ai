@@ -3,7 +3,10 @@ import os
 import re
 from typing import Dict, List
 
-from anthropic import Anthropic
+try:
+    from anthropic import Anthropic
+except ImportError:
+    Anthropic = None
 
 
 PILLARS = ["Education", "Product Showcase", "Entertainment", "Storytelling", "Behind-the-Scenes", "Social Proof", "Trend/Topical", "Tutorial/How-To", "Brand Culture"]
@@ -13,7 +16,7 @@ class AIAnalyzer:
     def __init__(self, api_key: str | None = None, model_name: str = "claude-sonnet-4-20250514"):
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
         self.model_name = model_name
-        self.available = bool(self.api_key)
+        self.available = bool(self.api_key and Anthropic)
         self.client = Anthropic(api_key=self.api_key) if self.available else None
         self.error = None
 

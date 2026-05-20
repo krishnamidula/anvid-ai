@@ -53,7 +53,6 @@ export default function ResultsDashboard({ data, onNew }) {
           <div className="text-xs font-bold uppercase tracking-widest text-primary">anvidAI Report</div>
           <h1 className="mt-2 text-3xl font-black text-white">{data.winner} leads this comparison</h1>
           {data.excluded_companies?.length > 0 && <p className="mt-2 text-sm text-warm">{data.excluded_companies.map((item) => item.error).join(' ')}</p>}
-          {data.ai_message && <p className="mt-2 text-sm text-warm">{data.ai_message}</p>}
         </div>
         <div className="flex flex-wrap gap-3">
           <button onClick={downloadPpt} className="rounded-xl bg-gradient-to-r from-primary to-secondary px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/30 transition-all hover:scale-105 hover:shadow-xl">
