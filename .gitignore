@@ -1,0 +1,10 @@
+node_modules/
+.env
+.venv/
+vidstrat-ai/frontend/node_modules/
+vidstrat-ai/backend/.venv/
+vidstrat-ai/frontend/dist/
+.DS_Store
+*.pyc
+__pycache__/
+*.egg-info/

@@ -17,16 +17,32 @@ export default function App() {
   useEffect(() => {
     if (state !== 'analysing' || !request) return
     let cancelled = false
-    axios.post(API_URL, request)
+    axios.post(API_URL, request, {
+      timeout: 120000
+    })
       .then((response) => {
+        console.log("SUCCESS:", response.data)
+
         if (cancelled) return
         setResult(response.data)
         setState('results')
       })
       .catch((err) => {
+        console.log("FULL ERROR:", err)
+
         if (cancelled) return
-        const message = err.response?.data?.detail || 'Connection failed. Please check your connection and try again.'
-        setError(Array.isArray(message) ? 'Please check the submitted company names and try again.' : message)
+
+        const message =
+          err.response?.data?.detail ||
+          err.message ||
+          'Connection failed. Please check your connection and try again.'
+
+        setError(
+          Array.isArray(message)
+            ? 'Please check the submitted company names and try again.'
+            : message
+        )
+
         setState('error')
       })
     return () => { cancelled = true }
