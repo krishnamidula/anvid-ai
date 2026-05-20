@@ -157,7 +157,7 @@ class YouTubeFetcher:
 
     def get_channel_stats(self, channel_id: str) -> Dict:
         response = self.youtube.channels().list(
-            part="snippet,statistics,brandingSettings",
+            part="snippet,statistics,brandingSettings,contentDetails",
             id=channel_id,
             maxResults=1,
         ).execute()
@@ -168,6 +168,7 @@ class YouTubeFetcher:
         snippet = item.get("snippet", {})
         stats = item.get("statistics", {})
         branding = item.get("brandingSettings", {}).get("channel", {})
+        related_playlists = item.get("contentDetails", {}).get("relatedPlaylists", {})
         thumbs = snippet.get("thumbnails", {})
         thumbnail = (thumbs.get("high") or thumbs.get("medium") or thumbs.get("default") or {}).get("url", "")
         # fallback: construct a reasonable channel thumbnail if YouTube didn't provide one
@@ -185,28 +186,41 @@ class YouTubeFetcher:
             "published_at": snippet.get("publishedAt", ""),
             "custom_url": snippet.get("customUrl", ""),
             "thumbnail_url": thumbnail,
+            "uploads_playlist_id": related_playlists.get("uploads", ""),
         }
 
-    def get_recent_videos(self, channel_id: str, max_results: int = 50) -> List[Dict]:
-        response = self.youtube.search().list(
+    def get_recent_videos(self, channel_id: str, max_results: int = 50, uploads_playlist_id: str = "") -> List[Dict]:
+        if not uploads_playlist_id:
+            channel = self.youtube.channels().list(
+                part="contentDetails",
+                id=channel_id,
+                maxResults=1,
+            ).execute()
+            items = channel.get("items", [])
+            uploads_playlist_id = (
+                items[0].get("contentDetails", {}).get("relatedPlaylists", {}).get("uploads", "")
+                if items
+                else ""
+            )
+        if not uploads_playlist_id:
+            raise ValueError("Could not locate the channel uploads playlist.")
+
+        response = self.youtube.playlistItems().list(
             part="snippet",
-            channelId=channel_id,
-            type="video",
-            order="date",
+            playlistId=uploads_playlist_id,
             maxResults=max_results,
         ).execute()
         videos = []
         for item in response.get("items", []):
             snippet = item.get("snippet", {})
+            video_id = snippet.get("resourceId", {}).get("videoId")
             thumbs = snippet.get("thumbnails", {})
             thumbnail = (thumbs.get("medium") or thumbs.get("default") or {}).get("url", "")
             # fallback: use standard YouTube thumbnail URL pattern when snippet thumbnails are missing
-            if not thumbnail:
-                video_id = item.get("id", {}).get("videoId")
-                if video_id:
-                    thumbnail = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
+            if not thumbnail and video_id:
+                thumbnail = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"
             videos.append({
-                "video_id": item.get("id", {}).get("videoId"),
+                "video_id": video_id,
                 "title": snippet.get("title", ""),
                 "published_at": snippet.get("publishedAt", ""),
                 "description": snippet.get("description", ""),
@@ -255,7 +269,7 @@ class YouTubeFetcher:
             return {"name": company_name, "error": error, "videos": []}
         try:
             channel = self.get_channel_stats(channel_id)
-            raw_videos = self.get_recent_videos(channel_id)
+            raw_videos = self.get_recent_videos(channel_id, uploads_playlist_id=channel.get("uploads_playlist_id", ""))
             stats_by_id = self.get_video_stats([video["video_id"] for video in raw_videos])
             videos = [{**video, **stats_by_id.get(video["video_id"], {})} for video in raw_videos]
             videos.sort(key=lambda item: item.get("views", 0), reverse=True)

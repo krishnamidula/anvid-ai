@@ -61,7 +61,8 @@ def analyse(request: AnalyseRequest):
     valid_channels = [channel for channel in raw_channels if not channel.get("error")]
     live_errors = [{"name": channel.get("name"), "error": channel.get("error")} for channel in raw_channels if channel.get("error")]
     if len(valid_channels) < 2:
-        details = " ".join(error["error"] for error in live_errors) or "Could not fetch enough valid YouTube channels."
+        unique_errors = list(dict.fromkeys(error["error"] for error in live_errors if error.get("error")))
+        details = " ".join(unique_errors) or "Could not fetch enough valid YouTube channels."
         raise HTTPException(status_code=503, detail=f"Live YouTube data is unavailable: {details}")
 
     data_analyzer = DataAnalyzer()
