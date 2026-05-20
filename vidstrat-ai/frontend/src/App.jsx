@@ -62,7 +62,7 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (state === 'input' || state === 'results') {
+    if (state === 'input') {
       const scrollTop = () => {
         window.scrollTo({ top: 0, left: 0, behavior: 'smooth' })
         if (document.scrollingElement) document.scrollingElement.scrollTop = 0
@@ -83,7 +83,6 @@ export default function App() {
         )}
         {state === 'analysing' && (
           <motion.main key="analysing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <Hero compact />
             <div className="mx-auto max-w-4xl px-6 py-10"><AnalysisProgress request={request} /></div>
           </motion.main>
         )}
@@ -103,7 +102,6 @@ export default function App() {
         )}
         {state === 'error' && (
           <motion.main key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <Hero compact />
             <div className="mx-auto max-w-3xl px-6 py-10">
               <div className="rounded-2xl border border-accent/40 bg-card p-8">
                 <div className="text-xs font-bold uppercase tracking-widest text-accent">Analysis Error</div>

@@ -60,11 +60,9 @@ def analyse(request: AnalyseRequest):
     raw_channels = [fetcher.get_full_channel_data(name) for name in names]
     valid_channels = [channel for channel in raw_channels if not channel.get("error")]
     live_errors = [{"name": channel.get("name"), "error": channel.get("error")} for channel in raw_channels if channel.get("error")]
-    used_demo_data = False
     if len(valid_channels) < 2:
-        valid_channels = [generate_demo_channel_data(name, index) for index, name in enumerate(names)]
-        raw_channels = valid_channels
-        used_demo_data = True
+        details = " ".join(error["error"] for error in live_errors) or "Could not fetch enough valid YouTube channels."
+        raise HTTPException(status_code=503, detail=f"Live YouTube data is unavailable: {details}")
 
     data_analyzer = DataAnalyzer()
     seo_analyzer = SEOAnalyzer()
@@ -147,16 +145,14 @@ def analyse(request: AnalyseRequest):
         "charts": charts,
         "pptx_base64": "",
         "total_videos_analysed": sum(len(channel.get("videos", [])) for channel in valid_channels),
-        "excluded_companies": [] if used_demo_data else [{"name": channel.get("name"), "error": channel.get("error")} for channel in raw_channels if channel.get("error")],
+        "excluded_companies": [{"name": channel.get("name"), "error": channel.get("error")} for channel in raw_channels if channel.get("error")],
         "live_errors": live_errors,
         "ai_available": ai_analyzer.available,
         "ai_message": "AI commentary disabled because no Anthropic API key is configured.",
-        "data_source": "demo" if used_demo_data else "youtube",
+        "data_source": "youtube",
     }
     if ai_analyzer.available:
         payload["ai_message"] = "AI commentary is enabled."
-    if used_demo_data:
-        payload["ai_message"] = "Live YouTube data was unavailable because the API quota/network failed, so this report uses built-in demo data for submission preview."
     payload["pptx_base64"] = PPTXBuilder().build_report(payload)
     return payload
 

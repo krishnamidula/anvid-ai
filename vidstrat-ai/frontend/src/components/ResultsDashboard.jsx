@@ -22,6 +22,7 @@ const tabs = [
 
 export default function ResultsDashboard({ data, onNew }) {
   const wrapperRef = useRef(null)
+  const contentRef = useRef(null)
 
   function downloadPpt() {
     const binary = atob(data.pptx_base64)
@@ -39,11 +40,10 @@ export default function ResultsDashboard({ data, onNew }) {
   const ActiveComponent = tabs[active][1]
 
   useEffect(() => {
-    if (wrapperRef.current) {
-      wrapperRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    } else {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
+    const target = contentRef.current || wrapperRef.current
+    window.requestAnimationFrame(() => {
+      setTimeout(() => target?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
+    })
   }, [active])
 
   return (
@@ -73,7 +73,7 @@ export default function ResultsDashboard({ data, onNew }) {
           ))}
         </div>
       </div>
-      <div className="mt-6">
+      <div ref={contentRef} className="mt-6 scroll-mt-6">
         <AnimatePresence mode="wait">
           <motion.div key={active} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
             <ActiveComponent data={data} />

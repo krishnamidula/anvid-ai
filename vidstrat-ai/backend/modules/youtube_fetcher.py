@@ -6,8 +6,22 @@ import isodate
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+from modules import cache
+
 
 class YouTubeFetcher:
+    KNOWN_CHANNEL_IDS = {
+        "mrbeast": ("UCX6OQ3DkcsbYNE6H8uQQuVA", "MrBeast"),
+        "mr beast": ("UCX6OQ3DkcsbYNE6H8uQQuVA", "MrBeast"),
+        "pewdiepie": ("UC-lHJZR3Gqxm24_Vd_AJ5Yw", "PewDiePie"),
+        "pew die pie": ("UC-lHJZR3Gqxm24_Vd_AJ5Yw", "PewDiePie"),
+        "dudeperfect": ("UCRijo3ddMTht_IHyNSNXpNQ", "Dude Perfect"),
+        "dude perfect": ("UCRijo3ddMTht_IHyNSNXpNQ", "Dude Perfect"),
+        "mkbhd": ("UCBJycsmduvYEL83R_U4JriQ", "Marques Brownlee"),
+        "marques brownlee": ("UCBJycsmduvYEL83R_U4JriQ", "Marques Brownlee"),
+        "puma": ("UCZq427EjGqUbV6pZIjEKkgg", "PUMA"),
+    }
+
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("YOUTUBE_API_KEY")
         if not self.api_key:
@@ -34,6 +48,16 @@ class YouTubeFetcher:
         return "Connection failed. Please check your connection and try again."
 
     @staticmethod
+    def _normalize_name(value: str) -> str:
+        return " ".join(re.findall(r"[a-z0-9]+", value.lower()))
+
+    @classmethod
+    def _known_channel(cls, company_name: str) -> Optional[Tuple[str, str]]:
+        normalized = cls._normalize_name(company_name)
+        compact = normalized.replace(" ", "")
+        return cls.KNOWN_CHANNEL_IDS.get(normalized) or cls.KNOWN_CHANNEL_IDS.get(compact)
+
+    @staticmethod
     def _safe_int(value) -> int:
         try:
             return int(value or 0)
@@ -41,6 +65,10 @@ class YouTubeFetcher:
             return 0
 
     def search_channel(self, company_name: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+        known = self._known_channel(company_name)
+        if known:
+            return known[0], known[1], None
+
         try:
             candidates = {}
             for query in self._channel_queries(company_name):
@@ -76,9 +104,7 @@ class YouTubeFetcher:
         return [
             f"{cleaned} official YouTube channel",
             f"{cleaned} official",
-            f"{cleaned} brand",
             cleaned,
-            f"{cleaned} India",
         ]
 
     @staticmethod
@@ -219,6 +245,11 @@ class YouTubeFetcher:
         return results
 
     def get_full_channel_data(self, company_name: str) -> Dict:
+        cache_key = f"channel-v2:{self._normalize_name(company_name)}"
+        cached = cache.load_cached_channel(cache_key)
+        if cached:
+            return cached
+
         channel_id, found_title, error = self.search_channel(company_name)
         if error:
             return {"name": company_name, "error": error, "videos": []}
@@ -244,6 +275,9 @@ class YouTubeFetcher:
                 "recent_10_videos": sorted(videos, key=lambda video: video.get("published_at", ""), reverse=True)[:10],
                 "upload_dates": [video.get("published_at", "") for video in raw_videos if video.get("published_at")],
             })
+            cache.save_cached_channel(cache_key, channel)
             return channel
         except Exception as error:
+            if cached:
+                return cached
             return {"name": company_name, "error": self.friendly_error(error, company_name), "videos": []}
