@@ -2,7 +2,6 @@ import axios from 'axios'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import AnalysisProgress from './components/AnalysisProgress'
-import Hero from './components/Hero'
 import InputForm from './components/InputForm'
 import ResultsDashboard from './components/ResultsDashboard'
 
@@ -76,8 +75,13 @@ export default function App() {
       <AnimatePresence mode="sync">
         {state === 'input' && (
           <motion.main key="input" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <Hero />
-            <div className="mx-auto max-w-4xl px-6 py-10"><InputForm onSubmit={submit} /></div>
+            <div className="mx-auto max-w-4xl px-6 py-8">
+              <div className="mb-6 text-center">
+                <div className="text-xs font-bold uppercase tracking-[0.35em] text-muted">Video Marketing Intelligence</div>
+                <h1 className="mt-3 text-5xl font-black text-shimmer">anvidAI</h1>
+              </div>
+              <InputForm onSubmit={submit} />
+            </div>
           </motion.main>
         )}
         {state === 'analysing' && (

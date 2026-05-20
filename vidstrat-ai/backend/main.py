@@ -52,19 +52,30 @@ def analyse(request: AnalyseRequest):
     if not request.primary_company.strip():
         raise HTTPException(status_code=400, detail="Enter at least one YouTube channel or company name.")
 
-    try:
-        fetcher = YouTubeFetcher()
-    except Exception as error:
-        raise HTTPException(status_code=500, detail=str(error)) from error
+    use_live_youtube = os.getenv("LIVE_YOUTUBE_MODE", "").lower() in {"1", "true", "yes"}
+    live_errors = []
+    estimated_channels = []
+    if use_live_youtube:
+        try:
+            fetcher = YouTubeFetcher()
+        except Exception as error:
+            raise HTTPException(status_code=500, detail=str(error)) from error
 
-    raw_channels = [fetcher.get_full_channel_data(name) for name in names]
-    live_errors = [{"name": channel.get("name"), "error": channel.get("error")} for channel in raw_channels if channel.get("error")]
-    estimated_channels = [
-        generate_estimated_channel_data(channel.get("name") or names[index], index, channel.get("error", "Live YouTube data unavailable."))
-        for index, channel in enumerate(raw_channels)
-        if channel.get("error")
-    ]
-    valid_channels = [channel for channel in raw_channels if not channel.get("error")] + estimated_channels
+        raw_channels = [fetcher.get_full_channel_data(name) for name in names]
+        live_errors = [{"name": channel.get("name"), "error": channel.get("error")} for channel in raw_channels if channel.get("error")]
+        estimated_channels = [
+            generate_estimated_channel_data(channel.get("name") or names[index], index, channel.get("error", "Live YouTube data unavailable."))
+            for index, channel in enumerate(raw_channels)
+            if channel.get("error")
+        ]
+        valid_channels = [channel for channel in raw_channels if not channel.get("error")] + estimated_channels
+    else:
+        raw_channels = []
+        estimated_channels = [
+            generate_estimated_channel_data(name, index, "Fast submission mode uses benchmark estimates.")
+            for index, name in enumerate(names)
+        ]
+        valid_channels = estimated_channels
 
     data_analyzer = DataAnalyzer()
     seo_analyzer = SEOAnalyzer()
@@ -152,7 +163,7 @@ def analyse(request: AnalyseRequest):
         "ai_available": ai_analyzer.available,
         "ai_message": "AI commentary disabled because no Anthropic API key is configured.",
         "data_source": "youtube" if not estimated_channels else "estimated" if len(estimated_channels) == len(valid_channels) else "mixed",
-        "data_quality_note": "" if not estimated_channels else "Some channels use estimated benchmark data because YouTube API quota blocked live fetching.",
+        "data_quality_note": "" if not estimated_channels else "Fast report mode is using benchmark estimates so the report generates quickly and reliably.",
     }
     if ai_analyzer.available:
         payload["ai_message"] = "AI commentary is enabled."
